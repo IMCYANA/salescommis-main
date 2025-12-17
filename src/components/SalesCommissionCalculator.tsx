@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Download, Plus, Trash2, User, IdCard, RotateCcw, AlertCircle } from "lucide-react"
+import { Download, Plus, Trash2, User, IdCard, RotateCcw, AlertCircle, History } from "lucide-react"
 import * as XLSX from "xlsx"
 
 // --- 1. ส่วนของ Logic คำนวณและตรวจสอบ (รวมไว้ที่นี่เลย) ---
@@ -140,12 +140,94 @@ export default function SalesCommissionCalculator() {
     XLSX.writeFile(wb, "report.xlsx")
   }
 
+  // ฟังก์ชันดาวน์โหลดประวัติการคำนวณทั้งหมด
+  const handleDownloadHistory = () => {
+    if (history.length === 0) {
+      alert("ไม่มีประวัติการคำนวณให้ดาวน์โหลด");
+      return;
+    }
+
+    // สร้างข้อมูลสำหรับ Excel
+    const data = [
+      ["ประวัติการคำนวณคอมมิชชั่น - Sales Commission Calculator"],
+      ["วันที่สร้างรายงาน", new Date().toLocaleString("th-TH")],
+      ["จำนวนรายการทั้งหมด", history.length],
+      [], // บรรทัดว่าง
+      ["ลำดับ", "วันที่/เวลา", "รหัสพนักงาน", "ชื่อ-นามสกุล", "Locks", "Stocks", "Barrels", "ยอดขายรวม", "คอมมิชชั่น T1", "คอมมิชชั่น T2", "คอมมิชชั่น T3", "คอมมิชชั่นรวม"]
+    ];
+
+    // เพิ่มข้อมูลแต่ละรายการ
+    history.forEach((record, index) => {
+      data.push([
+        index + 1,
+        record.timestamp.toLocaleString("th-TH"),
+        record.employeeId,
+        record.employeeName,
+        record.locks,
+        record.stocks,
+        record.barrels,
+        record.sales,
+        record.commission.tier1,
+        record.commission.tier2,
+        record.commission.tier3,
+        record.commission.total
+      ]);
+    });
+
+    // เพิ่มสรุปผลรวม
+    data.push([]); // บรรทัดว่าง
+    const totalLocks = history.reduce((sum, record) => sum + record.locks, 0);
+    const totalStocks = history.reduce((sum, record) => sum + record.stocks, 0);
+    const totalBarrels = history.reduce((sum, record) => sum + record.barrels, 0);
+    const totalSales = history.reduce((sum, record) => sum + record.sales, 0);
+    const totalCommissionT1 = history.reduce((sum, record) => sum + record.commission.tier1, 0);
+    const totalCommissionT2 = history.reduce((sum, record) => sum + record.commission.tier2, 0);
+    const totalCommissionT3 = history.reduce((sum, record) => sum + record.commission.tier3, 0);
+    const totalCommission = history.reduce((sum, record) => sum + record.commission.total, 0);
+    
+    data.push(["สรุปผลรวมทั้งหมด", "", "", "", totalLocks, totalStocks, totalBarrels, totalSales, totalCommissionT1, totalCommissionT2, totalCommissionT3, totalCommission]);
+
+    // สร้างไฟล์ Excel
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    
+    // กำหนดความกว้างของคอลัมน์
+    const colWidths = [
+      { wch: 8 },  // ลำดับ
+      { wch: 20 }, // วันที่/เวลา
+      { wch: 12 }, // รหัสพนักงาน
+      { wch: 25 }, // ชื่อ-นามสกุล
+      { wch: 8 },  // Locks
+      { wch: 8 },  // Stocks
+      { wch: 8 },  // Barrels
+      { wch: 12 }, // ยอดขายรวม
+      { wch: 12 }, // คอมมิชชั่น T1
+      { wch: 12 }, // คอมมิชชั่น T2
+      { wch: 12 }, // คอมมิชชั่น T3
+      { wch: 15 }, // คอมมิชชั่นรวม
+    ];
+    ws["!cols"] = colWidths;
+
+    XLSX.utils.book_append_sheet(wb, ws, "ประวัติการคำนวณ");
+    
+    // ตั้งชื่อไฟล์โดยมีวันที่
+    const dateStr = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `commission_history_${dateStr}.xlsx`);
+  };
+
+  // ฟังก์ชันล้างประวัติ
+  const handleClearHistory = () => {
+    if (confirm("คุณต้องการล้างประวัติการคำนวณทั้งหมดใช่หรือไม่?")) {
+      setHistory([]);
+    }
+  };
+
   const isFormValid = locks.isValid && stocks.isValid && barrels.isValid && employeeId.isValid && firstName.isValid && lastName.isValid
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 font-sans text-slate-900">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-center text-blue-700 mb-8">ระบบคำนวณค่าคอมมิชชั่น</h1>
+        <h1 className="text-3xl font-bold text-center text-purple-700 mb-8">ระบบคำนวณค่าคอมมิชชั่น</h1>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white p-8 rounded-xl shadow border border-slate-200">
@@ -189,7 +271,7 @@ export default function SalesCommissionCalculator() {
                         </div>
                     ))}
                 </div>
-                <Button onClick={handleCalculate} disabled={!isFormValid} className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl">
+                <Button onClick={handleCalculate} disabled={!isFormValid} className="w-full mt-6 bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 rounded-xl">
                     คำนวณ
                 </Button>
             </div>
@@ -200,7 +282,7 @@ export default function SalesCommissionCalculator() {
                         <h2 className="text-xl font-bold">ผลลัพธ์</h2>
                         <div className="flex gap-2">
                             <Button onClick={handleDownloadCurrent} variant="outline" size="sm"><Download className="w-4 h-4 mr-1"/> Excel</Button>
-                            <Button onClick={handleSaveAndNew} size="sm" className="bg-green-600 hover:bg-green-700 text-white"><Plus className="w-4 h-4 mr-1"/> Save & New</Button>
+                            <Button onClick={handleSaveAndNew} size="sm" className="bg-purple-600 hover:bg-purple-700 text-white"><Plus className="w-4 h-4 mr-1"/> Save & New</Button>
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -208,10 +290,10 @@ export default function SalesCommissionCalculator() {
                             <p className="text-xs text-slate-500 font-bold uppercase">ยอดขายรวม</p>
                             <p className="text-3xl font-bold text-slate-800">${sales.toLocaleString()}</p>
                         </div>
-                        <div className="p-4 bg-blue-600 rounded-lg text-white">
-                            <p className="text-xs text-blue-100 font-bold uppercase">คอมมิชชั่นสุทธิ</p>
+                        <div className="p-4 bg-purple-600 rounded-lg text-white">
+                            <p className="text-xs text-purple-100 font-bold uppercase">คอมมิชชั่นสุทธิ</p>
                             <p className="text-3xl font-bold">${commission.total.toLocaleString()}</p>
-                            <div className="text-xs mt-2 pt-2 border-t border-blue-400 space-y-1">
+                            <div className="text-xs mt-2 pt-2 border-t border-purple-400 space-y-1">
                                 <p>T1: ${commission.tier1} | T2: ${commission.tier2} | T3: ${commission.tier3}</p>
                             </div>
                         </div>
@@ -221,18 +303,56 @@ export default function SalesCommissionCalculator() {
           </div>
           
           <div className="bg-white p-6 rounded-xl shadow border border-slate-200 h-fit">
-            <h2 className="font-bold mb-4">ประวัติ ({history.length})</h2>
-            <div className="space-y-3 max-h-[600px] overflow-auto">
-                {history.length === 0 && <p className="text-center text-slate-400 py-10">ไม่มีรายการ</p>}
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="font-bold flex items-center gap-2">
+                <History className="w-4 h-4" />
+                ประวัติ ({history.length})
+              </h2>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleDownloadHistory} 
+                  variant="outline" 
+                  size="sm"
+                  disabled={history.length === 0}
+                  className="flex items-center gap-1"
+                >
+                  <Download className="w-3 h-3" />
+                  ดาวน์โหลด
+                </Button>
+                <Button 
+                  onClick={handleClearHistory} 
+                  variant="outline" 
+                  size="sm"
+                  disabled={history.length === 0}
+                  className="flex items-center gap-1 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  ล้าง
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-3 max-h-[500px] overflow-auto">
+                {history.length === 0 && (
+                  <div className="text-center text-slate-400 py-10 border border-dashed border-slate-200 rounded-lg">
+                    <p>ไม่มีประวัติการคำนวณ</p>
+                    <p className="text-xs mt-1">บันทึกการคำนวณเพื่อดูประวัติ</p>
+                  </div>
+                )}
                 {history.map(r => (
-                    <div key={r.id} className="p-3 bg-slate-50 rounded border text-xs">
+                    <div key={r.id} className="p-3 bg-slate-50 rounded border text-xs hover:bg-slate-100 transition-colors">
                         <div className="flex justify-between font-bold text-slate-700">
-                            <span>{r.employeeName}</span>
-                            <span className="text-green-600">${r.commission.total}</span>
+                            <span className="truncate">{r.employeeName}</span>
+                            <span className="text-green-600 whitespace-nowrap">${r.commission.total.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between text-slate-400 mt-1">
-                            <span>{r.employeeId}</span>
-                            <span>Sales: ${r.sales}</span>
+                            <span className="truncate mr-2">{r.employeeId}</span>
+                            <span className="whitespace-nowrap">Sales: ${r.sales.toLocaleString()}</span>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-2 pt-2 border-t border-slate-200">
+                            <div className="flex justify-between">
+                                <span>L: {r.locks} | S: {r.stocks} | B: {r.barrels}</span>
+                                <span>{r.timestamp.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
                         </div>
                     </div>
                 ))}
@@ -242,4 +362,4 @@ export default function SalesCommissionCalculator() {
       </div>
     </div>
   )
-} 
+}
