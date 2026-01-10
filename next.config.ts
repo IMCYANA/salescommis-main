@@ -1,7 +1,4 @@
 import type { NextConfig } from "next";
-import path from "node:path";
-
-const LOADER = path.resolve(__dirname, 'src/visual-edits/component-tagger-loader.js');
 
 const nextConfig: NextConfig = {
   images: {
@@ -16,21 +13,16 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  outputFileTracingRoot: path.resolve(__dirname, '../../'),
+  // ปรับแก้เส้นทางให้ถูกต้องสำหรับ Windows
+  outputFileTracingRoot: undefined, 
   typescript: {
+    // ช่วยให้รันผ่านแม้มี Error ของ TypeScript
     ignoreBuildErrors: true,
   },
   eslint: {
+    // แก้ไขส่วนที่ขึ้นตัวแดง: สั่งให้ข้ามการตรวจตอน Build เพื่อให้รันโปรเจกต์ได้
     ignoreDuringBuilds: true,
   },
-  turbopack: {
-    rules: {
-      "*.{jsx,tsx}": {
-        loaders: [LOADER]
-      }
-    }
-  }
 };
 
 export default nextConfig;
-// Orchids restart: 1764772115194

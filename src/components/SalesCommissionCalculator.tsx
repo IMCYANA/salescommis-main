@@ -1,13 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Download, Plus, Trash2, User, IdCard, RotateCcw, AlertCircle, History } from "lucide-react"
+import { Download, Plus, RotateCcw, AlertCircle, Calculator, User, Coins, FileSpreadsheet } from "lucide-react"
 import * as XLSX from "xlsx"
 
-// --- 1. ส่วนของ Logic คำนวณและตรวจสอบ (รวมไว้ที่นี่เลย) ---
-
+// --- 1. Logic ส่วนการคำนวณ ---
 interface CommissionBreakdown {
   tier1: number; tier2: number; tier3: number; total: number
 }
@@ -15,6 +14,10 @@ interface CommissionBreakdown {
 const PRICE_LOCK = 45.0
 const PRICE_STOCK = 30.0
 const PRICE_BARREL = 25.0
+
+const MAX_LOCKS = 70
+const MAX_STOCKS = 80
+const MAX_BARRELS = 90
 
 const calculateSales = (locks: number, stocks: number, barrels: number): number => {
   return (locks * PRICE_LOCK) + (stocks * PRICE_STOCK) + (barrels * PRICE_BARREL)
@@ -35,38 +38,17 @@ const calculateCommission = (sales: number): CommissionBreakdown => {
   return { tier1, tier2, tier3, total: tier1 + tier2 + tier3 }
 }
 
-// Validation Functions
 const validateInput = (value: string, min: number, max: number) => {
   if (!value || value.trim() === "") return { isValid: false, error: "กรุณาระบุจำนวน" }
-  if (/\s/.test(value)) return { isValid: false, error: "ห้ามเว้นวรรค" }
   const num = Number(value)
-  if (isNaN(num)) return { isValid: false, error: "ต้องเป็นตัวเลขเท่านั้น" }
+  if (isNaN(num)) return { isValid: false, error: "ต้องเป็นตัวเลข" }
   if (!Number.isInteger(num)) return { isValid: false, error: "ต้องเป็นจำนวนเต็ม" }
-  if (num < min) return { isValid: false, error: `ค่าต้องอยู่ระหว่าง ${min}-${max}` }
-  if (num > max) return { isValid: false, error: `ค่าต้องไม่เกิน ${max}` }
+  if (num < min) return { isValid: false, error: `ขั้นต่ำคือ ${min}` }
+  if (num > max) return { isValid: false, error: `สูงสุดคือ ${max}` }
   return { isValid: true, error: "" }
 }
 
-const validateEmployeeId = (id: string) => {
-    if (!id || id.trim() === "") return { isValid: false, error: "กรุณาระบุรหัส" }
-    const regex = /^[a-zA-Z0-9]+$/;
-    if (/\s/.test(id)) return { isValid: false, error: "ห้ามมีช่องว่าง" }
-    if (!regex.test(id)) return { isValid: false, error: "ใช้ภาษาอังกฤษ/ตัวเลขเท่านั้น" }
-    if (id.length < 3) return { isValid: false, error: "สั้นเกินไป (3-10 ตัวอักษร)" }
-    if (id.length > 10) return { isValid: false, error: "ยาวเกินไป (ไม่เกิน 10 ตัวอักษร)" }
-    return { isValid: true, error: "" }
-}
-
-const validateNameField = (text: string, fieldName: string) => {
-    if (!text || text.trim() === "") return { isValid: false, error: `กรุณาระบุ${fieldName}` }
-    const charRegex = /^[a-zA-Zก-๙\s]+$/;
-    if (!charRegex.test(text)) return { isValid: false, error: "ห้ามมีตัวเลข/สัญลักษณ์" }
-    if (text.trim().length < 2) return { isValid: false, error: "สั้นเกินไป" }
-    return { isValid: true, error: "" }
-}
-
-// --- 2. ส่วนของ UI หน้าจอ ---
-
+// --- 2. Main Component ---
 interface InputState { value: string; error: string; isValid: boolean }
 interface CalculationRecord {
   id: string; timestamp: Date; employeeId: string; employeeName: string;
@@ -74,34 +56,21 @@ interface CalculationRecord {
 }
 
 export default function SalesCommissionCalculator() {
+  const resultRef = useRef<HTMLDivElement>(null)
+
   const [employeeId, setEmployeeId] = useState<InputState>({ value: "", error: "", isValid: false })
   const [firstName, setFirstName] = useState<InputState>({ value: "", error: "", isValid: false })
   const [lastName, setLastName] = useState<InputState>({ value: "", error: "", isValid: false })
-
   const [locks, setLocks] = useState<InputState>({ value: "", error: "", isValid: false })
   const [stocks, setStocks] = useState<InputState>({ value: "", error: "", isValid: false })
   const [barrels, setBarrels] = useState<InputState>({ value: "", error: "", isValid: false })
-  
   const [calculated, setCalculated] = useState(false)
   const [sales, setSales] = useState(0)
   const [commission, setCommission] = useState({ tier1: 0, tier2: 0, tier3: 0, total: 0 })
   const [history, setHistory] = useState<CalculationRecord[]>([])
 
-  const handleIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value.toUpperCase()
-      const val = validateEmployeeId(value)
-      setEmployeeId({ value, error: val.error, isValid: val.isValid })
-  }
-  const handleName = (e: React.ChangeEvent<HTMLInputElement>, isFirst: boolean) => {
-      const val = validateNameField(e.target.value, isFirst ? "ชื่อ" : "นามสกุล")
-      if (isFirst) setFirstName({ value: e.target.value, error: val.error, isValid: val.isValid })
-      else setLastName({ value: e.target.value, error: val.error, isValid: val.isValid })
-  }
-  const handleNum = (e: React.ChangeEvent<HTMLInputElement>, max: number, setter: any) => {
-      const val = validateInput(e.target.value, 1, max)
-      setter({ value: e.target.value, error: val.error, isValid: val.isValid })
-      setCalculated(false)
-  }
+  // ฟังก์ชันจัดรูปแบบตัวเลข (ใช้คอมม่าแสดงหลักพัน)
+  const formatNumber = (val: number) => new Intl.NumberFormat('th-TH', { style: 'decimal', minimumFractionDigits: 2 }).format(val)
 
   const handleCalculate = () => {
     const l = parseInt(locks.value), s = parseInt(stocks.value), b = parseInt(barrels.value)
@@ -109,192 +78,129 @@ export default function SalesCommissionCalculator() {
     setSales(totalSales)
     setCommission(calculateCommission(totalSales))
     setCalculated(true)
+
+    // เลื่อนลงอัตโนมัติไปยังส่วนผลลัพธ์
+    setTimeout(() => {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, 100)
   }
 
   const handleSaveAndNew = () => {
-    const fullName = `${firstName.value.trim()} ${lastName.value.trim()}`
-    const newRecord = {
-      id: Date.now().toString(), timestamp: new Date(), employeeId: employeeId.value, employeeName: fullName,
+    const newRecord: CalculationRecord = {
+      id: Date.now().toString(), timestamp: new Date(), employeeId: employeeId.value,
+      employeeName: `${firstName.value} ${lastName.value}`,
       locks: parseInt(locks.value), stocks: parseInt(stocks.value), barrels: parseInt(barrels.value),
       sales, commission
     }
     setHistory([newRecord, ...history])
-    // Reset Form
-    setLocks({ value: "", error: "", isValid: false })
-    setStocks({ value: "", error: "", isValid: false })
-    setBarrels({ value: "", error: "", isValid: false })
+    setLocks({ value: "", error: "", isValid: false }); setStocks({ value: "", error: "", isValid: false }); setBarrels({ value: "", error: "", isValid: false })
     setCalculated(false)
   }
 
-  const handleDownloadCurrent = () => {
-    const fullName = `${firstName.value.trim()} ${lastName.value.trim()}`
-    const l = parseInt(locks.value), s = parseInt(stocks.value), b = parseInt(barrels.value)
-    const data = [
-        ["Report"], ["Date", new Date().toLocaleString()], ["ID", employeeId.value], ["Name", fullName], [],
-        ["Item", "Qty", "Price", "Total"],
-        ["Locks", l, 45, l*45], ["Stocks", s, 30, s*30], ["Barrels", b, 25, b*25], [],
-        ["Total Sales", sales], ["Commission", commission.total]
-    ]
-    const wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(data)
-    XLSX.utils.book_append_sheet(wb, ws, "Report")
-    XLSX.writeFile(wb, "report.xlsx")
-  }
-
-  // ฟังก์ชันดาวน์โหลดประวัติการคำนวณทั้งหมด
-  const handleDownloadHistory = () => {
-    if (history.length === 0) {
-      alert("ไม่มีประวัติการคำนวณให้ดาวน์โหลด");
-      return;
-    }
-
-    // สร้างข้อมูลสำหรับ Excel
-    const data = [
-      ["ประวัติการคำนวณคอมมิชชั่น - Sales Commission Calculator"],
-      ["วันที่สร้างรายงาน", new Date().toLocaleString("th-TH")],
-      ["จำนวนรายการทั้งหมด", history.length],
-      [], // บรรทัดว่าง
-      ["ลำดับ", "วันที่/เวลา", "รหัสพนักงาน", "ชื่อ-นามสกุล", "Locks", "Stocks", "Barrels", "ยอดขายรวม", "คอมมิชชั่น T1", "คอมมิชชั่น T2", "คอมมิชชั่น T3", "คอมมิชชั่นรวม"]
-    ];
-
-    // เพิ่มข้อมูลแต่ละรายการ
-    history.forEach((record, index) => {
-      data.push([
-        index + 1,
-        record.timestamp.toLocaleString("th-TH"),
-        record.employeeId,
-        record.employeeName,
-        record.locks,
-        record.stocks,
-        record.barrels,
-        record.sales,
-        record.commission.tier1,
-        record.commission.tier2,
-        record.commission.tier3,
-        record.commission.total
-      ]);
-    });
-
-    // เพิ่มสรุปผลรวม
-    data.push([]); // บรรทัดว่าง
-    const totalLocks = history.reduce((sum, record) => sum + record.locks, 0);
-    const totalStocks = history.reduce((sum, record) => sum + record.stocks, 0);
-    const totalBarrels = history.reduce((sum, record) => sum + record.barrels, 0);
-    const totalSales = history.reduce((sum, record) => sum + record.sales, 0);
-    const totalCommissionT1 = history.reduce((sum, record) => sum + record.commission.tier1, 0);
-    const totalCommissionT2 = history.reduce((sum, record) => sum + record.commission.tier2, 0);
-    const totalCommissionT3 = history.reduce((sum, record) => sum + record.commission.tier3, 0);
-    const totalCommission = history.reduce((sum, record) => sum + record.commission.total, 0);
-    
-    data.push(["สรุปผลรวมทั้งหมด", "", "", "", totalLocks, totalStocks, totalBarrels, totalSales, totalCommissionT1, totalCommissionT2, totalCommissionT3, totalCommission]);
-
-    // สร้างไฟล์ Excel
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    
-    // กำหนดความกว้างของคอลัมน์
-    const colWidths = [
-      { wch: 8 },  // ลำดับ
-      { wch: 20 }, // วันที่/เวลา
-      { wch: 12 }, // รหัสพนักงาน
-      { wch: 25 }, // ชื่อ-นามสกุล
-      { wch: 8 },  // Locks
-      { wch: 8 },  // Stocks
-      { wch: 8 },  // Barrels
-      { wch: 12 }, // ยอดขายรวม
-      { wch: 12 }, // คอมมิชชั่น T1
-      { wch: 12 }, // คอมมิชชั่น T2
-      { wch: 12 }, // คอมมิชชั่น T3
-      { wch: 15 }, // คอมมิชชั่นรวม
-    ];
-    ws["!cols"] = colWidths;
-
-    XLSX.utils.book_append_sheet(wb, ws, "ประวัติการคำนวณ");
-    
-    // ตั้งชื่อไฟล์โดยมีวันที่
-    const dateStr = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(wb, `commission_history_${dateStr}.xlsx`);
-  };
-
-  // ฟังก์ชันล้างประวัติ
-  const handleClearHistory = () => {
-    if (confirm("คุณต้องการล้างประวัติการคำนวณทั้งหมดใช่หรือไม่?")) {
-      setHistory([]);
-    }
-  };
-
-  const isFormValid = locks.isValid && stocks.isValid && barrels.isValid && employeeId.isValid && firstName.isValid && lastName.isValid
+  const isFormValid = locks.isValid && stocks.isValid && barrels.isValid && employeeId.isValid && firstName.value && lastName.value
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 font-sans text-slate-900">
+    <div className="min-h-screen bg-slate-50 py-12 px-4 text-slate-900 font-sans">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-bold text-center text-purple-700 mb-8">ระบบคำนวณค่าคอมมิชชั่น</h1>
+        {/* หัวข้อระบบ */}
+        <div className="flex items-center justify-center gap-3 mb-10">
+            <Calculator className="w-8 h-8 text-purple-600" />
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-800 uppercase">ระบบคำนวณค่าคอมมิชชั่น</h1>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white p-8 rounded-xl shadow border border-slate-200">
-                <div className="flex justify-between mb-6">
+          <div className="lg:col-span-2 space-y-8">
+            
+            {/* 1. ข้อมูลพนักงาน */}
+            <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold">ข้อมูลพนักงาน</h2>
-                    <Button variant="ghost" size="sm" onClick={() => window.location.reload()}><RotateCcw className="w-4 h-4 mr-1"/> รีเซ็ต</Button>
+                    <Button variant="ghost" size="sm" onClick={() => window.location.reload()} className="text-slate-400 hover:text-purple-600">
+                      <RotateCcw className="w-4 h-4 mr-1"/> รีเซ็ต
+                    </Button>
                 </div>
-                <div className="space-y-4">
-                    <div>
+                <div className="space-y-6">
+                    <div className="max-w-[250px]">
                         <label className="text-sm font-bold block mb-1">รหัสพนักงาน</label>
-                        <Input value={employeeId.value} onChange={handleIdChange} className={employeeId.error ? "border-red-500 bg-red-50" : ""} placeholder="EMP001" />
-                        {employeeId.error && <p className="text-red-500 text-xs mt-1 flex gap-1"><AlertCircle className="w-3 h-3"/>{employeeId.error}</p>}
+                        <Input value={employeeId.value} onChange={(e) => setEmployeeId({value: e.target.value.toUpperCase().replace(/\s/g, ''), error: "", isValid: e.target.value.length >= 3})} className={employeeId.error ? "border-red-500" : ""} placeholder="EMP001" />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label className="text-sm font-bold block mb-1">ชื่อ</label>
-                            <Input value={firstName.value} onChange={(e) => handleName(e, true)} className={firstName.error ? "border-red-500 bg-red-50" : ""} />
-                            {firstName.error && <p className="text-red-500 text-xs mt-1">{firstName.error}</p>}
+                            <Input value={firstName.value} onChange={(e) => setFirstName({ ...firstName, value: e.target.value })} placeholder="ชื่อภาษาไทย/อังกฤษ" />
                         </div>
                         <div>
                             <label className="text-sm font-bold block mb-1">นามสกุล</label>
-                            <Input value={lastName.value} onChange={(e) => handleName(e, false)} className={lastName.error ? "border-red-500 bg-red-50" : ""} />
-                            {lastName.error && <p className="text-red-500 text-xs mt-1">{lastName.error}</p>}
+                            <Input value={lastName.value} onChange={(e) => setLastName({ ...lastName, value: e.target.value })} placeholder="นามสกุล" />
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="bg-white p-8 rounded-xl shadow border border-slate-200">
+            {/* 2. รายการสินค้า */}
+            <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
                 <h2 className="text-xl font-bold mb-6">รายการสินค้า</h2>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-6 mb-8">
                     {[
-                        { l: "Locks", max: 70, p: 45, s: locks, f: (e:any)=>handleNum(e, 70, setLocks) },
-                        { l: "Stocks", max: 80, p: 30, s: stocks, f: (e:any)=>handleNum(e, 80, setStocks) },
-                        { l: "Barrels", max: 90, p: 25, s: barrels, f: (e:any)=>handleNum(e, 90, setBarrels) }
-                    ].map((i, idx) => (
-                        <div key={idx}>
-                            <label className="text-sm font-medium block mb-1">{i.l}</label>
-                            <Input type="number" value={i.s.value} onChange={i.f} className={i.s.error ? "border-red-500 bg-red-50" : ""} placeholder={`Max ${i.max}`}/>
-                            {i.s.error && <p className="text-red-500 text-xs mt-1">{i.s.error}</p>}
+                        { label: "Locks", max: MAX_LOCKS, s: locks, setter: setLocks, color: "bg-purple-50" },
+                        { label: "Stocks", max: MAX_STOCKS, s: stocks, setter: setStocks, color: "bg-indigo-50" },
+                        { label: "Barrels", max: MAX_BARRELS, s: barrels, setter: setBarrels, color: "bg-fuchsia-50" }
+                    ].map((item, idx) => (
+                        <div key={idx} className={`p-4 rounded-lg border border-slate-100 ${item.color}`}>
+                            <label className="text-xs font-bold text-slate-600 block mb-1">{item.label}</label>
+                            <Input 
+                              type="number" 
+                              value={item.s.value} 
+                              onChange={(e) => {
+                                const val = validateInput(e.target.value, 1, item.max)
+                                item.setter({ value: e.target.value, error: val.error, isValid: val.isValid })
+                              }} 
+                              className="bg-white"
+                              placeholder={`1-${item.max}`} 
+                            />
+                            {item.s.error && <p className="text-red-500 text-[10px] mt-1 font-medium">{item.s.error}</p>}
                         </div>
                     ))}
                 </div>
-                <Button onClick={handleCalculate} disabled={!isFormValid} className="w-full mt-6 bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 rounded-xl">
-                    คำนวณ
-                </Button>
+                <Button onClick={handleCalculate} disabled={!isFormValid} className="w-full bg-purple-600 hover:bg-purple-700 h-12 rounded-full font-bold text-white shadow-lg transition-all">คำนวณ</Button>
             </div>
 
+            {/* 3. ส่วนผลลัพธ์ (สไตล์ตามรูปภาพตัวอย่าง) */}
             {calculated && (
-                <div className="bg-white p-8 rounded-xl shadow border border-slate-200 animate-in slide-in-from-bottom-2">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold">ผลลัพธ์</h2>
+                <div ref={resultRef} className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm scroll-mt-10 animate-in fade-in slide-in-from-bottom-4">
+                    <div className="flex justify-between items-center mb-8">
+                        <h2 className="text-2xl font-bold">ผลลัพธ์</h2>
                         <div className="flex gap-2">
-                            <Button onClick={handleDownloadCurrent} variant="outline" size="sm"><Download className="w-4 h-4 mr-1"/> Excel</Button>
-                            <Button onClick={handleSaveAndNew} size="sm" className="bg-purple-600 hover:bg-purple-700 text-white"><Plus className="w-4 h-4 mr-1"/> Save & New</Button>
+                            <Button variant="outline" className="text-slate-600 border-slate-200 h-10 px-4 font-bold">
+                              <Download className="w-4 h-4 mr-2"/> Excel
+                            </Button>
+                            <Button onClick={handleSaveAndNew} className="bg-purple-600 hover:bg-purple-700 text-white h-10 px-4 font-bold">
+                              <Plus className="w-4 h-4 mr-2"/> Save & New
+                            </Button>
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 bg-slate-50 rounded-lg">
-                            <p className="text-xs text-slate-500 font-bold uppercase">ยอดขายรวม</p>
-                            <p className="text-3xl font-bold text-slate-800">${sales.toLocaleString()}</p>
-                        </div>
-                        <div className="p-4 bg-purple-600 rounded-lg text-white">
-                            <p className="text-xs text-purple-100 font-bold uppercase">คอมมิชชั่นสุทธิ</p>
-                            <p className="text-3xl font-bold">${commission.total.toLocaleString()}</p>
-                            <div className="text-xs mt-2 pt-2 border-t border-purple-400 space-y-1">
-                                <p>T1: ${commission.tier1} | T2: ${commission.tier2} | T3: ${commission.tier3}</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+    {/* ส่วนยอดขายรวม */}
+    <div className="flex flex-col">
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">ยอดขายรวม</p>
+        {/* เปลี่ยนเป็น flex-row และใช้ items-baseline เพื่อให้ฐานตัวอักษรตรงกัน */}
+        <div className="flex flex-row items-baseline gap-2 leading-tight">
+            <span className="text-4xl font-black text-slate-800 tracking-tight">
+                {formatNumber(sales)}
+            </span>
+            <span className="text-xl font-black text-slate-800">
+                บาท
+            </span>
+        </div>
+    </div>
+                        <div className="bg-purple-600 p-6 rounded-xl text-white relative shadow-lg shadow-purple-100 overflow-hidden">
+                            <p className="text-xs font-bold text-purple-100 uppercase mb-1 tracking-widest">คอมมิชชั่นสุทธิ</p>
+                            <p className="text-3xl font-black mb-6">{formatNumber(commission.total)} บาท</p>
+                            <div className="pt-4 border-t border-purple-400 text-[10px] font-bold text-purple-100 flex justify-between uppercase">
+                                <span>T1: ${formatNumber(commission.tier1)}</span>
+                                <span>T2: ${formatNumber(commission.tier2)}</span>
+                                <span>T3: ${formatNumber(commission.tier3)}</span>
                             </div>
                         </div>
                     </div>
@@ -302,58 +208,21 @@ export default function SalesCommissionCalculator() {
             )}
           </div>
           
-          <div className="bg-white p-6 rounded-xl shadow border border-slate-200 h-fit">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="font-bold flex items-center gap-2">
-                <History className="w-4 h-4" />
-                ประวัติ ({history.length})
-              </h2>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handleDownloadHistory} 
-                  variant="outline" 
-                  size="sm"
-                  disabled={history.length === 0}
-                  className="flex items-center gap-1"
-                >
-                  <Download className="w-3 h-3" />
-                  ดาวน์โหลด
-                </Button>
-                <Button 
-                  onClick={handleClearHistory} 
-                  variant="outline" 
-                  size="sm"
-                  disabled={history.length === 0}
-                  className="flex items-center gap-1 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  ล้าง
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-3 max-h-[500px] overflow-auto">
-                {history.length === 0 && (
-                  <div className="text-center text-slate-400 py-10 border border-dashed border-slate-200 rounded-lg">
-                    <p>ไม่มีประวัติการคำนวณ</p>
-                    <p className="text-xs mt-1">บันทึกการคำนวณเพื่อดูประวัติ</p>
-                  </div>
-                )}
+          {/* ส่วนประวัติข้างเคียง */}
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-fit sticky top-8">
+            <h2 className="text-lg font-bold text-slate-700 mb-4 flex justify-between items-center">
+              ประวัติล่าสุด 
+              <span className="bg-purple-100 text-purple-600 text-xs px-2.5 py-1 rounded-full">{history.length}</span>
+            </h2>
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                {history.length === 0 && <p className="text-center py-10 text-slate-400 text-sm italic">ยังไม่มีรายการบันทึก</p>}
                 {history.map(r => (
-                    <div key={r.id} className="p-3 bg-slate-50 rounded border text-xs hover:bg-slate-100 transition-colors">
-                        <div className="flex justify-between font-bold text-slate-700">
-                            <span className="truncate">{r.employeeName}</span>
-                            <span className="text-green-600 whitespace-nowrap">${r.commission.total.toLocaleString()}</span>
+                    <div key={r.id} className="p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-purple-200 transition-colors">
+                        <div className="flex justify-between font-bold text-sm">
+                            <span className="truncate max-w-[100px] text-slate-700">{r.employeeName}</span>
+                            <span className="text-purple-600">+{r.commission.total.toFixed(2)} ฿</span>
                         </div>
-                        <div className="flex justify-between text-slate-400 mt-1">
-                            <span className="truncate mr-2">{r.employeeId}</span>
-                            <span className="whitespace-nowrap">Sales: ${r.sales.toLocaleString()}</span>
-                        </div>
-                        <div className="text-xs text-slate-500 mt-2 pt-2 border-t border-slate-200">
-                            <div className="flex justify-between">
-                                <span>L: {r.locks} | S: {r.stocks} | B: {r.barrels}</span>
-                                <span>{r.timestamp.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1 uppercase font-bold">{r.employeeId} • ยอดขาย {r.sales.toLocaleString()} บาท</p>
                     </div>
                 ))}
             </div>

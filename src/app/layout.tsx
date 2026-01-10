@@ -1,13 +1,16 @@
-import type { Metadata } from "next";
+import { Metadata } from "next";
 import "./globals.css";
 import VisualEditsMessenger from "../visual-edits/VisualEditsMessenger";
 import ErrorReporter from "@/components/ErrorReporter";
 import Script from "next/script";
 import { Prompt } from "next/font/google";
 
+// 1. เพิ่ม "thai" ใน subsets เพื่อให้แสดงผลภาษาไทยได้ถูกต้อง
+// 2. การระบุ subsets และ weight ที่ชัดเจนช่วยให้ Turbopack/Webpack โหลด Font ได้แม่นยำขึ้น
 const prompt = Prompt({
-  subsets: ["latin"],
+  subsets: ["latin", "thai"], 
   weight: ["300", "400", "500", "600", "700"],
+  display: "swap", // เพิ่มเพื่อให้ตัวอักษรแสดงผลทันทีระหว่างโหลด
 });
 
 export const metadata: Metadata = {
@@ -21,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="th"> {/* เปลี่ยนเป็น th เพื่อ SEO และการจัดการภาษาไทย */}
       <body className={`${prompt.className} antialiased`}>
         <ErrorReporter />
         <Script
