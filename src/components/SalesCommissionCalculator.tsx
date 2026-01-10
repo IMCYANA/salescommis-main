@@ -3,7 +3,14 @@
 import { useState, useRef } from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Download, Plus, RotateCcw, AlertCircle, Calculator, User, Coins, FileSpreadsheet } from "lucide-react"
+import { 
+  Download, 
+  Plus, 
+  RotateCcw, 
+  Trash2, 
+  FileSpreadsheet,
+  History
+} from "lucide-react"
 import * as XLSX from "xlsx"
 
 // --- 1. Logic ส่วนการคำนวณ ---
@@ -69,7 +76,6 @@ export default function SalesCommissionCalculator() {
   const [commission, setCommission] = useState({ tier1: 0, tier2: 0, tier3: 0, total: 0 })
   const [history, setHistory] = useState<CalculationRecord[]>([])
 
-  // ฟังก์ชันจัดรูปแบบตัวเลข (ใช้คอมม่าแสดงหลักพัน)
   const formatNumber = (val: number) => new Intl.NumberFormat('th-TH', { style: 'decimal', minimumFractionDigits: 2 }).format(val)
 
   const handleCalculate = () => {
@@ -79,7 +85,6 @@ export default function SalesCommissionCalculator() {
     setCommission(calculateCommission(totalSales))
     setCalculated(true)
 
-    // เลื่อนลงอัตโนมัติไปยังส่วนผลลัพธ์
     setTimeout(() => {
       resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
     }, 100)
@@ -87,14 +92,54 @@ export default function SalesCommissionCalculator() {
 
   const handleSaveAndNew = () => {
     const newRecord: CalculationRecord = {
-      id: Date.now().toString(), timestamp: new Date(), employeeId: employeeId.value,
+      id: Date.now().toString(), 
+      timestamp: new Date(), 
+      employeeId: employeeId.value,
       employeeName: `${firstName.value} ${lastName.value}`,
-      locks: parseInt(locks.value), stocks: parseInt(stocks.value), barrels: parseInt(barrels.value),
-      sales, commission
+      locks: parseInt(locks.value), 
+      stocks: parseInt(stocks.value), 
+      barrels: parseInt(barrels.value),
+      sales, 
+      commission
     }
     setHistory([newRecord, ...history])
-    setLocks({ value: "", error: "", isValid: false }); setStocks({ value: "", error: "", isValid: false }); setBarrels({ value: "", error: "", isValid: false })
+    setLocks({ value: "", error: "", isValid: false })
+    setStocks({ value: "", error: "", isValid: false })
+    setBarrels({ value: "", error: "", isValid: false })
     setCalculated(false)
+  }
+
+  // --- ฟังก์ชัน Export เป็น Excel ---
+  const handleExportExcel = () => {
+    if (history.length === 0) return;
+
+    const exportData = history.map((r) => ({
+      "วันที่/เวลา": r.timestamp.toLocaleString("th-TH"),
+      "รหัสพนักงาน": r.employeeId,
+      "ชื่อ-นามสกุล": r.employeeName,
+      "ยอดขาย Locks": r.locks,
+      "ยอดขาย Stocks": r.stocks,
+      "ยอดขาย Barrels": r.barrels,
+      "ยอดขายรวม (บาท)": r.sales,
+      "คอมมิชชั่น Tier 1": r.commission.tier1,
+      "คอมมิชชั่น Tier 2": r.commission.tier2,
+      "คอมมิชชั่น Tier 3": r.commission.tier3,
+      "คอมมิชชั่นรวมสุทธิ": r.commission.total,
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Commission Report")
+    
+    // สร้างไฟล์และดาวน์โหลด
+    XLSX.writeFile(workbook, `Commission_Report_${new Date().toISOString().split('T')[0]}.xlsx`)
+  }
+
+  // --- ฟังก์ชันล้างประวัติ ---
+  const handleClearHistory = () => {
+    if (confirm("คุณแน่ใจหรือไม่ว่าต้องการล้างประวัติการคำนวณทั้งหมด?")) {
+      setHistory([])
+    }
   }
 
   const isFormValid = locks.isValid && stocks.isValid && barrels.isValid && employeeId.isValid && firstName.value && lastName.value
@@ -102,12 +147,12 @@ export default function SalesCommissionCalculator() {
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 text-slate-900 font-sans">
       <div className="max-w-6xl mx-auto">
+        
         {/* หัวข้อระบบ */}
         <div className="flex items-center justify-center gap-3 mb-10">
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-800 uppercase">ระบบคำนวณค่าคอมมิชชั่น</h1>
         </div>
 
-        {/* เปลี่ยนจาก grid-cols-3 เป็น flexbox สำหรับการจัดตำแหน่งที่เท่ากัน */}
         <div className="flex flex-col lg:flex-row gap-8">
           {/* ส่วนซ้าย (ข้อมูลพนักงาน + รายการสินค้า + ผลลัพธ์) */}
           <div className="lg:w-2/3 space-y-8">
@@ -117,7 +162,7 @@ export default function SalesCommissionCalculator() {
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold">ข้อมูลพนักงาน</h2>
                     <Button variant="ghost" size="sm" onClick={() => window.location.reload()} className="text-slate-400 hover:text-purple-600">
-                      <RotateCcw className="w-4 h-4 mr-1"/> รีเซ็ต
+                      <RotateCcw className="w-4 h-4 mr-1"/> รีเซ็ตหน้าจอ
                     </Button>
                 </div>
                 <div className="space-y-6">
@@ -140,7 +185,7 @@ export default function SalesCommissionCalculator() {
                             <Input 
                               value={firstName.value} 
                               onChange={(e) => setFirstName({ ...firstName, value: e.target.value })} 
-                              placeholder="ชื่อภาษาไทย/อังกฤษ" 
+                              placeholder="ชื่อ" 
                               className="w-full"
                             />
                         </div>
@@ -187,7 +232,7 @@ export default function SalesCommissionCalculator() {
                   disabled={!isFormValid} 
                   className="w-full bg-purple-600 hover:bg-purple-700 h-12 rounded-full font-bold text-white shadow-lg transition-all"
                 >
-                  คำนวณ
+                  คำนวณค่าคอมมิชชั่น
                 </Button>
             </div>
 
@@ -195,21 +240,17 @@ export default function SalesCommissionCalculator() {
             {calculated && (
                 <div ref={resultRef} className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm scroll-mt-10 animate-in fade-in slide-in-from-bottom-4 w-full">
                     <div className="flex justify-between items-center mb-8">
-                        <h2 className="text-2xl font-bold">ผลลัพธ์</h2>
+                        <h2 className="text-2xl font-bold text-slate-800">สรุปยอด</h2>
                         <div className="flex gap-2">
-                            <Button variant="outline" className="text-slate-600 border-slate-200 h-10 px-4 font-bold">
-                              <Download className="w-4 h-4 mr-2"/> Excel
-                            </Button>
-                            <Button onClick={handleSaveAndNew} className="bg-purple-600 hover:bg-purple-700 text-white h-10 px-4 font-bold">
-                              <Plus className="w-4 h-4 mr-2"/> Save & New
+                            <Button onClick={handleSaveAndNew} className="bg-purple-600 hover:bg-purple-700 text-white h-10 px-6 rounded-full font-bold">
+                              <Plus className="w-4 h-4 mr-2"/> บันทึกข้อมูล
                             </Button>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start w-full">
-                        {/* ส่วนยอดขายรวม */}
-                        <div className="flex flex-col w-full">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">ยอดขายรวม</p>
+                        <div className="flex flex-col w-full px-2">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">ยอดขายรวมทั้งหมด</p>
                             <div className="flex flex-row items-baseline gap-2 leading-tight">
                                 <span className="text-4xl font-black text-slate-800 tracking-tight">
                                     {formatNumber(sales)}
@@ -220,12 +261,12 @@ export default function SalesCommissionCalculator() {
                             </div>
                         </div>
                         <div className="bg-purple-600 p-6 rounded-xl text-white relative shadow-lg shadow-purple-100 overflow-hidden w-full">
-                            <p className="text-xs font-bold text-purple-100 uppercase mb-1 tracking-widest">คอมมิชชั่นสุทธิ</p>
+                            <p className="text-xs font-bold text-purple-100 uppercase mb-1 tracking-widest">คอมมิชชั่นที่ได้รับ</p>
                             <p className="text-3xl font-black mb-6">{formatNumber(commission.total)} บาท</p>
                             <div className="pt-4 border-t border-purple-400 text-[10px] font-bold text-purple-100 flex justify-between uppercase">
-                                <span>T1: {formatNumber(commission.tier1)} บาท</span>
-                                <span>T2: {formatNumber(commission.tier2)} บาท</span>
-                                <span>T3: {formatNumber(commission.tier3)} บาท</span>
+                                <span>T1: {formatNumber(commission.tier1)}</span>
+                                <span>T2: {formatNumber(commission.tier2)}</span>
+                                <span>T3: {formatNumber(commission.tier3)}</span>
                             </div>
                         </div>
                     </div>
@@ -233,39 +274,71 @@ export default function SalesCommissionCalculator() {
             )}
           </div>
           
-          {/* ส่วนประวัติข้างเคียง */}
+          {/* ส่วนประวัติ (Sidebar) */}
           <div className="lg:w-1/3">
-            <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm h-fit sticky top-8 w-full">
-              <h2 className="text-xl font-bold text-slate-700 mb-6 flex justify-between items-center">
-                ประวัติการคำนวณ 
-                <span className="bg-purple-100 text-purple-600 text-xs px-3 py-1.5 rounded-full font-bold">
-                  {history.length} รายการ
-                </span>
-              </h2>
-              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-                  {history.length === 0 && (
-                    <div className="text-center py-10 text-slate-400 text-sm border-2 border-dashed border-slate-200 rounded-lg">
-                      <p>ยังไม่มีรายการบันทึก</p>
-                      <p className="text-xs mt-1">บันทึกการคำนวณเพื่อดูประวัติ</p>
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm h-fit sticky top-8 w-full">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <History className="w-5 h-5 text-purple-600"/> ประวัติการบันทึก
+                </h2>
+                <div className="flex gap-1">
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={handleExportExcel} 
+                    disabled={history.length === 0}
+                    className="h-8 w-8 text-emerald-600 border-emerald-100 hover:bg-emerald-50"
+                    title="Export to Excel"
+                  >
+                    <FileSpreadsheet className="w-4 h-4"/>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    onClick={handleClearHistory} 
+                    disabled={history.length === 0}
+                    className="h-8 w-8 text-red-400 border-red-50 hover:bg-red-50"
+                    title="Clear History"
+                  >
+                    <Trash2 className="w-4 h-4"/>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                  {history.length === 0 ? (
+                    <div className="text-center py-10 text-slate-400 text-sm border-2 border-dashed border-slate-100 rounded-lg">
+                      <p>ไม่มีประวัติการบันทึก</p>
                     </div>
-                  )}
-                  {history.map(r => (
-                      <div key={r.id} className="p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-purple-200 transition-colors w-full">
-                          <div className="flex justify-between items-center font-bold text-sm mb-2">
-                              <span className="truncate text-slate-700">{r.employeeName}</span>
-                              <span className="text-purple-600 font-bold text-base">+{formatNumber(r.commission.total)} บาท</span>
+                  ) : (
+                    history.map(r => (
+                      <div key={r.id} className="p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-purple-200 transition-colors group">
+                          <div className="flex justify-between items-start mb-2">
+                              <span className="font-bold text-sm text-slate-700 truncate max-w-[120px]">{r.employeeName}</span>
+                              <span className="text-purple-600 font-bold text-sm">+{formatNumber(r.commission.total)}</span>
                           </div>
-                          <div className="text-[11px] text-slate-500 mb-2">
-                              <span className="font-bold uppercase bg-slate-100 px-2 py-1 rounded mr-2">{r.employeeId}</span>
-                              <span className="font-medium">ยอดขาย: {formatNumber(r.sales)} บาท</span>
+                          <div className="text-[11px] text-slate-500 mb-2 flex items-center justify-between">
+                              <span className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold uppercase">{r.employeeId}</span>
+                              <span>ยอดขาย: {formatNumber(r.sales)}</span>
                           </div>
-                          <div className="text-[10px] text-slate-400 flex justify-between">
-                              <span>Locks: {r.locks} | Stocks: {r.stocks} | Barrels: {r.barrels}</span>
-                              <span className="font-medium">{r.timestamp.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' })}</span>
+                          <div className="text-[10px] text-slate-400 flex justify-between border-t border-slate-200/60 pt-2 mt-2">
+                              <span>L:{r.locks} S:{r.stocks} B:{r.barrels}</span>
+                              <span>{r.timestamp.toLocaleTimeString("th-TH", { hour: '2-digit', minute: '2-digit' })} น.</span>
                           </div>
                       </div>
-                  ))}
+                    ))
+                  )}
               </div>
+
+              {history.length > 0 && (
+                <Button 
+                  variant="ghost" 
+                  onClick={handleExportExcel}
+                  className="w-full mt-4 text-xs font-bold text-emerald-600 hover:bg-emerald-50 flex items-center justify-center gap-2"
+                >
+                  <Download className="w-3 h-3"/> ดาวน์โหลดรายงาน Excel
+                </Button>
+              )}
             </div>
           </div>
         </div>
