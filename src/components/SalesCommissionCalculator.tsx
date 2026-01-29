@@ -225,7 +225,7 @@ export default function SalesCommissionCalculator() {
         <div className="flex items-center justify-center gap-3 mb-10">
           <Calculator className="w-8 h-8 text-purple-600" />
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-800 uppercase">
-            ระบบคำนวณค่าคอมมิชชั่น
+            โปรแกรมคำนวณคอมมิชชั่น
           </h1>
         </div>
 
@@ -249,6 +249,7 @@ export default function SalesCommissionCalculator() {
                   <label className="text-sm font-bold block mb-1">
                     รหัสพนักงาน
                   </label>
+                  
                   <Input
                     value={employeeId.value}
                     onChange={(e) =>
@@ -373,7 +374,7 @@ export default function SalesCommissionCalculator() {
                       ยอดขายรวม
                     </p>
                     <p className="text-4xl font-black text-slate-800">
-                      {formatNumber(sales)} <span className="text-xl">บาท</span>
+                      {formatNumber(sales)} <span className="text-xl">USD</span>
                     </p>
                   </div>
                   <div className="bg-purple-600 p-6 rounded-xl text-white shadow-lg shadow-purple-100">
@@ -381,12 +382,12 @@ export default function SalesCommissionCalculator() {
                       คอมมิชชั่นสุทธิ
                     </p>
                     <p className="text-3xl font-black">
-                      {formatNumber(commission.total)} บาท
+                      {formatNumber(commission.total)} USD
                     </p>
-                    <div className="pt-4 mt-4 border-t border-purple-400 text-[10px] flex justify-between uppercase font-bold text-purple-100">
-                      <span>T1: {formatNumber(commission.tier1)}</span>
-                      <span>T2: {formatNumber(commission.tier2)}</span>
-                      <span>T3: {formatNumber(commission.tier3)}</span>
+                    <div className="pt-4 mt-4 border-t border-purple-400 text-[10px] flex justify-between font-bold text-purple-100">
+                      <span>Tier1: {formatNumber(commission.tier1)}</span>
+                      <span>Tier2: {formatNumber(commission.tier2)}</span>
+                      <span>Tier3: {formatNumber(commission.tier3)}</span>
                     </div>
                   </div>
                 </div>
@@ -469,7 +470,7 @@ export default function SalesCommissionCalculator() {
                           {r.employeeName}
                         </span>
                         <span className="text-purple-600">
-                          +{r.commission.total.toFixed(2)} ฿
+                          +{r.commission.total.toFixed(2)} $  
                         </span>
                       </div>
                       <p className="text-[10px] text-slate-400 mt-1 font-bold uppercase">
